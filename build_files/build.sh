@@ -13,6 +13,14 @@ set -ouex pipefail
 dnf5 install -y tmux
 dnf5 install -y spacenavd
 
+# Build and install rpiboot (Raspberry Pi USB boot tool)
+dnf5 install -y libusb1-devel make gcc git
+git clone --depth=1 https://github.com/raspberrypi/usbboot /tmp/usbboot
+make -C /tmp/usbboot
+install -m 0755 /tmp/usbboot/rpiboot /usr/local/bin/rpiboot
+rm -rf /tmp/usbboot
+dnf5 remove -y libusb1-devel make gcc git
+
 # Use a COPR Example:
 #
 # dnf5 -y copr enable ublue-os/staging

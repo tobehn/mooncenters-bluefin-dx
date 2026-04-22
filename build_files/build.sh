@@ -31,3 +31,13 @@ dnf5 remove -y libusb1-devel make gcc git
 #### Example for enabling a System Unit File
 
 systemctl enable podman.socket
+
+### vfio-pci ins Initramfs damit es vor nouveau lädt
+# Erforderlich für statisches GPU-Passthrough der GTX 1650 (Architektur A)
+# Siehe: machines/mooncenter.md + memory/learnings/2026-04-22-gpu-cannot-be-shared-with-active-compositor
+# Wirkt erst wenn rpm-ostree initramfs --enable einmalig auf dem Host gesetzt wurde
+# (ist auf MONDZENTRUM seit 2026-04-22 aktiv)
+mkdir -p /usr/lib/dracut/dracut.conf.d
+cat > /usr/lib/dracut/dracut.conf.d/99-vfio.conf <<'EOF'
+add_drivers+=" vfio vfio_iommu_type1 vfio-pci "
+EOF

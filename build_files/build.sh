@@ -41,3 +41,48 @@ mkdir -p /usr/lib/dracut/dracut.conf.d
 cat > /usr/lib/dracut/dracut.conf.d/99-vfio.conf <<'EOF'
 add_drivers+=" vfio vfio_iommu_type1 vfio-pci "
 EOF
+
+### Headless / Always-On (MONDZENTRUM via RDP im Tailnet)
+# Ziel: PC läuft ohne Tastatur/Maus/Monitor durch, erreichbar via gnome-remote-desktop
+# (System-"Remote-Anmeldung" / --system + --handover) im Tailnet.
+# Hinweis: Display-Ausgang braucht ein EDID -> HDMI/DP-Dummy-Plug steckt physisch.
+# Ohne EDID bleibt der amdgpu-Compositor ohne CRTC und GDM rendert schwarz.
+
+# GDM-Greeter darf nicht in Suspend gehen, sonst schläft die Box VOR dem ersten
+# RDP-Login am Anmeldebildschirm ein und ist im Tailnet weg.
+# (Der User-Session-Wert liegt in /var/home und ist bereits gesetzt.)
+mkdir -p /etc/dconf/db/gdm.d
+cat > /etc/dconf/db/gdm.d/10-no-suspend <<'EOF'
+[org/gnome/settings-daemon/plugins/power]
+sleep-inactive-ac-type='nothing'
+sleep-inactive-ac-timeout=0
+sleep-inactive-battery-type='nothing'
+EOF
+dconf update
+
+### Nächtlicher Reboot um 23:59:59
+# Aktiviert das per Autoupdate gestagte bootc-Image (Reboot = apply).
+cat > /usr/lib/systemd/system/nightly-reboot.service <<'EOF'
+[Unit]
+Description=Nightly system reboot (apply staged bootc/Bluefin updates)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/systemctl reboot
+EOF
+
+cat > /usr/lib/systemd/system/nightly-reboot.timer <<'EOF'
+[Unit]
+Description=Trigger nightly reboot at 23:59:59
+
+[Timer]
+OnCalendar=*-*-* 23:59:59
+AccuracySec=1s
+# Persistent=false: verpasste Reboots NICHT nachholen (sonst Reboot-Schleife beim Boot)
+Persistent=false
+
+[Install]
+WantedBy=timers.target
+EOF
+
+systemctl enable nightly-reboot.timer

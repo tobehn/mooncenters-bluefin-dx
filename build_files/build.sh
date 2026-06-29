@@ -21,6 +21,32 @@ install -m 0755 /tmp/usbboot/rpiboot /usr/bin/rpiboot
 rm -rf /tmp/usbboot
 dnf5 remove -y libusb1-devel make gcc git
 
+### uupd-indicator (GNOME-Shell-Extension, systemweit)
+# Pulsierender Tray-Indicator, solange uupd.service Updates anwendet.
+# Quelle: https://github.com/tobehn/uupd-indicator (neuester main, keine Tags)
+UUPD_UUID="uupd-indicator@projectbluefin.io"
+UUPD_DIR="/usr/share/gnome-shell/extensions/${UUPD_UUID}"
+mkdir -p "${UUPD_DIR}"
+curl -fsSL https://github.com/tobehn/uupd-indicator/archive/refs/heads/main.tar.gz \
+    | tar -xz -C /tmp
+cp -r "/tmp/uupd-indicator-main/${UUPD_UUID}/." "${UUPD_DIR}/"
+rm -rf /tmp/uupd-indicator-main
+chmod 644 "${UUPD_DIR}"/*
+# Image laeuft auf GNOME Shell 50 (F44), Extension deklariert nur "49"
+# -> aktuelle Shell-Major-Version ergaenzen, sonst laedt sie nicht.
+UUPD_SHELL_MAJOR="$(rpm -q --qf '%{version}' gnome-shell | cut -d. -f1)"
+if ! grep -q "\"${UUPD_SHELL_MAJOR}\"" "${UUPD_DIR}/metadata.json"; then
+    sed -i "s/\(\"shell-version\": *\[\)/\1\"${UUPD_SHELL_MAJOR}\", /" \
+        "${UUPD_DIR}/metadata.json"
+fi
+# Systemweit fuer alle User aktivieren (dconf-Default).
+mkdir -p /etc/dconf/db/local.d
+cat > /etc/dconf/db/local.d/20-uupd-indicator <<EOF
+[org/gnome/shell]
+enabled-extensions=['${UUPD_UUID}']
+EOF
+dconf update
+
 # Use a COPR Example:
 #
 # dnf5 -y copr enable ublue-os/staging

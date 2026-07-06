@@ -86,6 +86,12 @@ sleep-inactive-battery-type='nothing'
 EOF
 dconf update
 
+# Bulletproof: Sleep-Targets systemweit maskieren. Der dconf-Greeter-Fix oben
+# deckt nur den GDM-Anmeldebildschirm ab; ein logind IdleAction-/Lid-/manueller
+# Suspend käme trotzdem durch. Für eine Headless-Always-On-Box wollen wir gar
+# keinen Sleep -> Targets hart maskieren (Symlink auf /dev/null).
+systemctl mask sleep.target suspend.target hibernate.target hybrid-sleep.target
+
 ### Nächtlicher Reboot um 23:59:59
 # Aktiviert das per Autoupdate gestagte bootc-Image (Reboot = apply).
 cat > /usr/lib/systemd/system/nightly-reboot.service <<'EOF'
@@ -112,3 +118,31 @@ WantedBy=timers.target
 EOF
 
 systemctl enable nightly-reboot.timer
+
+### Selbstheilung bei Hard-Freeze: Hardware-Watchdog + Auto-Reboot bei Panic
+# Problem: Die Box friert gelegentlich komplett ein (kompletter Kernel-/GPU-Hang,
+# nichts mehr im Log, kein sauberes Shutdown). Dann ist sie via RDP nicht mehr
+# erreichbar (MS-RDP "Fehler 204" = Host nicht erreichbar) und der nächtliche
+# Reboot kann NICHT helfen, weil ein eingefrorener Kernel keine Timer mehr feuert.
+# -> Ausweg ist der in der Hardware vorhandene Watchdog (sp5100-tco, /dev/watchdog).
+#
+# systemd pingt den Watchdog aus PID 1. Sobald der Kernel hart hängt, bleibt der
+# Ping aus und die Hardware setzt die Box nach dem Timeout zwangsweise zurück.
+# Aus "5 Tage tot + hinfahren + Strom ziehen" wird "~1-2 Min weg, kommt allein wieder".
+mkdir -p /usr/lib/systemd/system.conf.d
+cat > /usr/lib/systemd/system.conf.d/10-watchdog.conf <<'EOF'
+[Manager]
+# Hardware-Watchdog armen; PID1 pingt alle 30s, Reset wenn 60s kein Ping (Freeze).
+RuntimeWatchdogSec=60s
+# Falls ein Reboot/Shutdown selbst hängt: nach 10min per Watchdog erzwingen.
+RebootWatchdogSec=10min
+EOF
+
+# Bei Kernel-Panic/Oops nicht endlos hängen bleiben, sondern automatisch neu starten.
+mkdir -p /usr/lib/sysctl.d
+cat > /usr/lib/sysctl.d/99-headless-panic-reboot.conf <<'EOF'
+# Headless-Always-On: nach Panic 10s warten, dann rebooten (statt tot hängen).
+kernel.panic = 10
+# Ein Oops soll zur Panic eskalieren -> greift die Reboot-Regel oben.
+kernel.panic_on_oops = 1
+EOF

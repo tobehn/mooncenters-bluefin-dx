@@ -146,3 +146,29 @@ kernel.panic = 10
 # Ein Oops soll zur Panic eskalieren -> greift die Reboot-Regel oben.
 kernel.panic_on_oops = 1
 EOF
+
+### Freeze-Ursache eingrenzen (AM4 Ryzen 5700G Idle-Hard-Freeze)
+# Beobachtung: Box friert IM IDLE ein, stiller Totalstillstand, NICHTS im Log
+# (kein Panic/GPU/IOMMU/MCE). Passt auf den bekannten AM4-Ryzen-Idle-Freeze
+# (Hänger beim Eintritt in tiefe Package-C-States). Zwei Massnahmen:
+#
+# B) Workaround: tiefe C-States verhindern. Friert die Box damit nicht mehr,
+#    ist die C-State-These bestaetigt (eigentlicher Fix waere BIOS "Power Supply
+#    Idle Control = Typical Current Idle"). nmi_watchdog=panic laesst einen
+#    Hardlockup panicen, damit er ueberhaupt erfassbar wird.
+mkdir -p /usr/lib/bootc/kargs.d
+cat > /usr/lib/bootc/kargs.d/10-idle-freeze.toml <<'EOF'
+kargs = ["processor.max_cstate=1", "idle=nomwait", "nmi_watchdog=panic"]
+EOF
+
+# C) Beweissicherung OHNE zweite Maschine: Soft-Lockups sollen panicen. Ein Panic
+#    (soft/hard-lockup, oops) wird von efi_pstore automatisch in die EFI-Variablen
+#    geschrieben und ist nach dem (Watchdog-)Reboot unter /sys/fs/pstore/ lesbar.
+#    -> naechster Freeze: "ls /sys/fs/pstore/; cat /sys/fs/pstore/dmesg-*".
+#    Bleibt /sys/fs/pstore leer, gab es keinen Panic -> reiner HW-/Power-Halt
+#    (C-State/BIOS), kein Software-Bug.
+mkdir -p /usr/lib/sysctl.d
+cat > /usr/lib/sysctl.d/98-freeze-diagnostics.conf <<'EOF'
+# Soft-Lockup (CPU >20s ohne Scheduling) -> Panic, damit efi_pstore ihn sichert.
+kernel.softlockup_panic = 1
+EOF

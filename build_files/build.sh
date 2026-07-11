@@ -235,6 +235,24 @@ esac
 EOF
 chmod +x /usr/bin/reboot-schedule
 
+# Bash-Completion: Unterbefehle + sinnvolle Argument-Vorschläge (Tab).
+cat > /usr/share/bash-completion/completions/reboot-schedule <<'EOF'
+_reboot_schedule() {
+    local cur prev
+    cur=${COMP_WORDS[COMP_CWORD]}
+    prev=${COMP_WORDS[COMP_CWORD-1]}
+    if [ "$COMP_CWORD" -eq 1 ]; then
+        COMPREPLY=( $(compgen -W "status on off daily every at help" -- "$cur") )
+        return
+    fi
+    case "$prev" in
+        every) COMPREPLY=( $(compgen -W "5 7 14 30" -- "$cur") ) ;;
+        at)    COMPREPLY=( $(compgen -W "23:59 03:00 04:00 05:00" -- "$cur") ) ;;
+    esac
+}
+complete -F _reboot_schedule reboot-schedule
+EOF
+
 systemctl enable nightly-reboot.timer
 
 ### Selbstheilung bei Hard-Freeze: Hardware-Watchdog + Auto-Reboot bei Panic

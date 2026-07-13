@@ -70,11 +70,14 @@ EOF
 
 ### Headless / Always-On (MONDZENTRUM im Tailnet)
 # Ziel: PC läuft ohne Tastatur/Maus/Monitor durch. Fernzugriff (Stand 2026-07-13):
-#  - Primär: RustDesk nativ als Root-Dienst (unattended, Portal-Grant reboot-fest;
-#    Block weiter unten + Vault-Pattern 2026-07-13-rustdesk-unattended-gnome-wayland-service-mode)
-#  - Sekundär: gnome-remote-desktop "Remote-Anmeldung" 3389 für FreeRDP-Clients/Remmina
-#    (Achtung: Login ersetzt die seat0-Session -> RustDesk-Portal-Grant danach neu erteilen)
-#  - Notfall: Tailscale SSH (Headscale-Policy tehn@->tehn@ seit 2026-07-13)
+#  - Primär + einziger GUI-Weg: RustDesk nativ als Root-Dienst (unattended, Portal-Grant
+#    reboot-fest; Block unten + Vault-Pattern 2026-07-13-rustdesk-unattended-gnome-wayland-service-mode)
+#  - Notfall (Terminal): Tailscale SSH (Headscale-Policy tehn@->tehn@ seit 2026-07-13)
+# ⚠️ gnome-remote-desktop System-Remote-Login (3389) wird bewusst MASKIERT (Block unten):
+#    Es hält permanent eine parallele gdm-greeter-Session bereit, in die RustDesks
+#    Connection-Manager nicht-deterministisch geraten kann (dort kein Portal-Grant ->
+#    Dialog bei jedem Connect). Ohne 3389 existiert nur die tobias-Auto-Login-Session
+#    -> RustDesk bedient deterministisch die Session mit dem persistenten Grant.
 # Hinweis: Display-Ausgang braucht ein EDID -> HDMI/DP-Dummy-Plug steckt physisch.
 # Ohne EDID bleibt der amdgpu-Compositor ohne CRTC und GDM rendert schwarz.
 
@@ -95,6 +98,24 @@ dconf update
 # Suspend käme trotzdem durch. Für eine Headless-Always-On-Box wollen wir gar
 # keinen Sleep -> Targets hart maskieren (Symlink auf /dev/null).
 systemctl mask sleep.target suspend.target hibernate.target hybrid-sleep.target
+
+### RustDesk-Determinismus: System-Remote-Login (3389) hart deaktivieren
+# gnome-remote-desktop System-Mode (Port 3389, Remote-Login/Handover) hält permanent
+# eine parallele gdm-greeter-Session bereit. RustDesks --service spawnt --server/--cm
+# fuer JEDE grafische Session; landet der Connection-Manager (ipc_cm) in der
+# gdm-greeter-Session (kein persistenter Portal-Grant, fluechtiges HOME), fragt RustDesk
+# bei JEDEM Connect neu nach der Bildschirmfreigabe -> unattended-Zugriff kaputt.
+# Das Symptom war nicht-deterministisch: mal traf der Connect die tobias-Session (Grant
+# da -> kein Dialog), mal die gdm-greeter-Session (kein Grant -> Dialog). Genau das hat
+# die Diagnose 2026-07-13 lange verschleiert.
+# Fix: System-GRD maskieren -> nur die tobias-Auto-Login-Session existiert -> RustDesk
+# bedient deterministisch die Session mit dem Grant. mask statt disable, weil das
+# Atomic-Preset ein disable beim Boot re-aktiviert (Learning 2026-07-12).
+# Verifiziert MONDZENTRUM 2026-07-13: loginctl zeigt nach Reboot nur tobias-Sessions,
+# iPhone + mondflieger via RustDesk ohne Dialog drin.
+# Trade-off: kein RDP-Desktop-Zugang (Remmina) mehr ueber 3389; RustDesk ist der GUI-Weg,
+# Tailscale SSH der Terminal-Notfall.
+systemctl mask gnome-remote-desktop.service
 
 ### RustDesk nativ (unattended Fernzugriff)
 # Warum im Image statt Flatpak/AppImage: Nur mit laufendem RustDesk-*Dienst* nimmt der

@@ -136,6 +136,15 @@ curl -fsSL -o /tmp/rustdesk.rpm \
 echo "${RUSTDESK_SHA256}  /tmp/rustdesk.rpm" | sha256sum -c -
 dnf5 install -y /tmp/rustdesk.rpm
 rm -f /tmp/rustdesk.rpm
+# Das RustDesk-RPM legt die Unit NUR als Vorlage nach /usr/share/rustdesk/files/ ab
+# (keine aktive systemd-Unit an einem Suchpfad) -> explizit nach /usr/lib kopieren,
+# sonst "Unit rustdesk.service does not exist" auf frischer Installation (z.B. UHV21).
+# Verifiziert MONDZENTRUM 2026-07-13: die aktive Unit kam nur aus dem manuellen /etc-Override.
+install -Dm644 /usr/share/rustdesk/files/rustdesk.service /usr/lib/systemd/system/rustdesk.service
+# Preset ins Image: haelt den enable-Zustand ueber die Atomic-Preset-Neuberechnung beim
+# Boot (sonst wird der enable-Symlink evtl. einkassiert, s. Learning 2026-07-12).
+mkdir -p /usr/lib/systemd/system-preset
+printf 'enable rustdesk.service\n' > /usr/lib/systemd/system-preset/20-rustdesk.preset
 systemctl enable rustdesk.service
 
 ### Nächtlicher Reboot (konfigurierbares Intervall)

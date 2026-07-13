@@ -68,9 +68,13 @@ cat > /usr/lib/dracut/dracut.conf.d/99-vfio.conf <<'EOF'
 add_drivers+=" vfio vfio_iommu_type1 vfio-pci "
 EOF
 
-### Headless / Always-On (MONDZENTRUM via RDP im Tailnet)
-# Ziel: PC läuft ohne Tastatur/Maus/Monitor durch, erreichbar via gnome-remote-desktop
-# (System-"Remote-Anmeldung" / --system + --handover) im Tailnet.
+### Headless / Always-On (MONDZENTRUM im Tailnet)
+# Ziel: PC läuft ohne Tastatur/Maus/Monitor durch. Fernzugriff (Stand 2026-07-13):
+#  - Primär: RustDesk nativ als Root-Dienst (unattended, Portal-Grant reboot-fest;
+#    Block weiter unten + Vault-Pattern 2026-07-13-rustdesk-unattended-gnome-wayland-service-mode)
+#  - Sekundär: gnome-remote-desktop "Remote-Anmeldung" 3389 für FreeRDP-Clients/Remmina
+#    (Achtung: Login ersetzt die seat0-Session -> RustDesk-Portal-Grant danach neu erteilen)
+#  - Notfall: Tailscale SSH (Headscale-Policy tehn@->tehn@ seit 2026-07-13)
 # Hinweis: Display-Ausgang braucht ein EDID -> HDMI/DP-Dummy-Plug steckt physisch.
 # Ohne EDID bleibt der amdgpu-Compositor ohne CRTC und GDM rendert schwarz.
 
@@ -91,6 +95,27 @@ dconf update
 # Suspend käme trotzdem durch. Für eine Headless-Always-On-Box wollen wir gar
 # keinen Sleep -> Targets hart maskieren (Symlink auf /dev/null).
 systemctl mask sleep.target suspend.target hibernate.target hybrid-sleep.target
+
+### RustDesk nativ (unattended Fernzugriff)
+# Warum im Image statt Flatpak/AppImage: Nur mit laufendem RustDesk-*Dienst* nimmt der
+# Client den ScreenCast-Portal-Pfad mit persist_mode=2 + restore_token -> die
+# Bildschirmfreigabe überlebt Reboots ohne Bestätigungs-Dialog. Das Flatpak kann das
+# prinzipbedingt nicht (RemoteDesktop-Portal-Pfad ohne persist, Upstream-TODO in
+# libs/scrap/src/wayland/pipewire.rs). Das RPM liefert Binary + Unit + Desktop-Eintrag
+# als EIN Artefakt; Updates/Rollback laufen über bootc mit (Version-Bump = Commit hier).
+# Identität/permanentes Passwort (RustDesk.toml unter /root bzw. $HOME) und der
+# Portal-Grant bleiben bewusst machine-local - keine Secrets im Image.
+# Version gepinnt + Checksum-verifiziert: GitHub-Release-RPMs sind nicht repo-signiert,
+# ein kompromittiertes Upstream-Release soll NICHT automatisch einfliessen.
+# Details: Vault-Pattern 2026-07-13-rustdesk-unattended-gnome-wayland-service-mode
+RUSTDESK_VERSION=1.4.9
+RUSTDESK_SHA256=eb1b053ac5b2f774f2271f7fbbfd2ea475899f7a55135c5e172bc54b9388f108
+curl -fsSL -o /tmp/rustdesk.rpm \
+    "https://github.com/rustdesk/rustdesk/releases/download/${RUSTDESK_VERSION}/rustdesk-${RUSTDESK_VERSION}-0.x86_64.rpm"
+echo "${RUSTDESK_SHA256}  /tmp/rustdesk.rpm" | sha256sum -c -
+dnf5 install -y /tmp/rustdesk.rpm
+rm -f /tmp/rustdesk.rpm
+systemctl enable rustdesk.service
 
 ### Nächtlicher Reboot (konfigurierbares Intervall)
 # Aktiviert das per Autoupdate gestagte bootc-Image (Reboot = apply).

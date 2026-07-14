@@ -308,6 +308,14 @@ _reboot_schedule() {
 complete -F _reboot_schedule reboot-schedule
 EOF
 
+# Preset ins Image: haelt den enable-Zustand ueber die Atomic-Preset-Neuberechnung
+# beim Boot. Ohne Preset-Regel kassiert der Boot den enable-Symlink wieder ein --
+# Beweis (Gegenprobe MONDZENTRUM 2026-07-13): rustdesk MIT 20-rustdesk.preset blieb
+# nach Reboot enabled, dieser Timer OHNE Preset wurde disabled. Auf MONDZENTRUM
+# maskiert ein historischer /etc-Override den Fehler; jede frische Installation
+# haette einen toten Auto-Update-Reboot (Updates werden gestagt, nie angewendet).
+# Learning: 2026-07-13-bootc-image-enable-needs-preset-etc-merge-beats-image
+printf 'enable nightly-reboot.timer\n' > /usr/lib/systemd/system-preset/21-nightly-reboot.preset
 systemctl enable nightly-reboot.timer
 
 ### Selbstheilung bei Hard-Freeze: Hardware-Watchdog + Auto-Reboot bei Panic

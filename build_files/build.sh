@@ -13,6 +13,19 @@ set -ouex pipefail
 dnf5 install -y tmux
 dnf5 install -y spacenavd
 
+### Claude Desktop (offizielle Anthropic-Linux-App, als RPM umgepackt)
+# Anthropic liefert nur ein .deb (APT-Repo). aaddrick/claude-desktop-debian
+# packt das offizielle app.asar unverändert als RPM — installiert nach
+# /usr/lib/claude-desktop-unofficial (kein /opt-Workaround nötig).
+# Repo-Datei kommt per COPY im Containerfile (claude-desktop.repo).
+# Cowork-VM-Deps (qemu-kvm, edk2-ovmf, virtiofsd) bringt bluefin-dx mit;
+# Check zur Laufzeit: claude-desktop-unofficial --doctor
+dnf5 install -y claude-desktop-unofficial
+test -x /usr/bin/claude-desktop-unofficial \
+    || { echo "Claude Desktop: Launcher fehlt" >&2; exit 1; }
+test -u /usr/lib/claude-desktop-unofficial/chrome-sandbox \
+    || { echo "Claude Desktop: chrome-sandbox ohne setuid" >&2; exit 1; }
+
 # Build and install rpiboot (Raspberry Pi USB boot tool)
 dnf5 install -y libusb1-devel make gcc git
 git clone --depth=1 https://github.com/raspberrypi/usbboot /tmp/usbboot

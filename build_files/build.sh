@@ -12,6 +12,8 @@ set -ouex pipefail
 # this installs a package from fedora repos
 dnf5 install -y tmux
 dnf5 install -y spacenavd
+# Header für native Builds auf dem Host (z.B. Python-/Ruby-Module mit C-Extensions)
+dnf5 install -y openssl-devel libffi-devel
 
 ### Claude Desktop (offizielle Anthropic-Linux-App, als RPM umgepackt)
 # Anthropic liefert nur ein .deb (APT-Repo). aaddrick/claude-desktop-debian

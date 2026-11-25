@@ -47,7 +47,7 @@ curl -fsSL https://github.com/tobehn/uupd-indicator/archive/refs/heads/main.tar.
 cp -r "/tmp/uupd-indicator-main/${UUPD_UUID}/." "${UUPD_DIR}/"
 rm -rf /tmp/uupd-indicator-main
 chmod 644 "${UUPD_DIR}"/*
-# Image laeuft auf GNOME Shell 50 (F44), Extension deklariert nur "49"
+# Image laeuft auf GNOME Shell 51 (F45), Extension deklariert nur "49"
 # -> aktuelle Shell-Major-Version ergaenzen, sonst laedt sie nicht.
 UUPD_SHELL_MAJOR="$(rpm -q --qf '%{version}' gnome-shell | cut -d. -f1)"
 if ! grep -q "\"${UUPD_SHELL_MAJOR}\"" "${UUPD_DIR}/metadata.json"; then
